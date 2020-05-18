@@ -126,6 +126,7 @@
                             :key="'colorItem' + colorItemIndex + '-line250'"
                             class="right-drag"
                             :ref="'line-'+(line-1)+colorItemIndex"
+                            @click.stop
                             @mousedown.stop.prevent="
                                 drag(
                                     line - 1, 
@@ -162,6 +163,7 @@
                         <div class="right-drag"
                             :ref="'line'+line+'-last'"
                             v-show="!opt.allHideDrag && disabled == false"
+                            @click.stop
                             @mousedown.stop.prevent="
                                 dragLast(
                                     line - 1, 
@@ -365,7 +367,7 @@ export default {
                 // 纵向文本数据
                 vData: ['vData1','vData2','vData3','vData4','vData5'],
                 //内置10种颜色序列
-                color: ['#71cf73', '#badf5f', '#0adddd', '#5797f0','#ffcb75',  '#e59332', '#ff8040', '#9f5000', '#8826e3', '#f13f31'],
+                color: ['#71cf73', '#badf5f', '#0adddd', '#5797f0','#ffcb75',  '#e59332', '#ff8040', '#9f5000', '#8826e3', '#f13f31', 'rgba(255,255,255,.1)'],
                 // 分段间隔显示
                 rangeCount: 1,
                 // 每单位像素
@@ -856,19 +858,6 @@ export default {
         },
         getColors(){
             return this.opt.color;
-        },
-        //返回实时的colorItems
-        getColorItems(){
-            var res = this.jsonClone(this.res);
-            var d = res[0].data;
-            d = d.map(item=>{
-                return {
-                    name: item.name,
-                    code: item.code,
-                    colorIndex: item.colorIndex,
-                }
-            })
-            return d;
         },
 
 	}

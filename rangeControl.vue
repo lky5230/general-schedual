@@ -1,31 +1,37 @@
 <template>
-	<div :key="rangeKey" class="week-range-wrap">
+	<div @click="activeColorItem=[]" :key="rangeKey" class="week-range-wrap">
         <!-- 顶部 -->
         <div class="title-text" :class="{opac: opacityTitle}">
             <div class="title-v0">{{opt.vhTitle}}</div>
             <div 
                 class="title-data" 
-                :style="{width: opt.unitWidth + 'px'}" 
+                :class="{
+                    'title-data-center': opt.titleTextAlign == 'center'
+                }"
+                :style="{
+                    width: opt.unitWidth + 'px',
+                }" 
                 v-for="(hItem, hIndex) in hDataComp"
-                :key="hIndex+'title-vvv'">
+                :key="hIndex + 'title-vvv'">
                 <span class="span-text" v-show="hIndex % (opt.rangeCount || 1)==0">
                     {{hItem}}{{opt.hDataUnit}}
                 </span>
                 <!-- 最后一个文本 -->
-                <span class="span-last" v-if="hDataComp.length - 1 == hIndex">
-                    {{hDataComp[hIndex]*1 + 1}}{{opt.hDataUnit}}
+                <span class="span-last" v-if="hDataComp.length - 1 == hIndex && opt.lastTitle != ''">
+                    {{opt.lastTitle}}{{opt.hDataUnit}}
                 </span>
             </div>
         </div>
 
         <div style="position: relative;">
             <div class="week-wrap" v-for="line in vDataComp.length" :key="line+'vDataComp'">
+
                 <!-- 左侧列（每行） -->
                 <div class="title-v nowrap">
                     <span :title="vDataComp[line - 1]">
                         {{vDataComp[line - 1]}}
                     </span>
-                    <div class="operation-btn">
+                    <div v-show="opt.allHideDrag == false && disabled == false" class="operation-btn">
                         <div class="operation">
                             <!-- 复制到上一行 -->
                             <div class="copy-up-icon" v-show="line != 1" @click="copyToPrev(line-1)" title="复制到上一行">
@@ -44,6 +50,7 @@
                         </div>
                     </div>
                 </div>
+
                 <!-- 绘图区域（每行） -->
                 <div :ref="'wrap' + line" class="title-data2-wrap">
 
@@ -59,37 +66,61 @@
                     </div>
 
                     <!-- 颜色格子 -->
-                    <template v-for="(colorItem, colorItemIndex)  in colorItemComp">
+                    <template v-for="(colorItem, colorItemIndex)  in res[line - 1].data">
                         <div
                             class="colorItem"
                             v-if="res[line - 1].data[colorItemIndex]"
                             :style="{
                                 width: res[line - 1].data[colorItemIndex].len * opt.unitWidth + 'px',
                                 left: res[line - 1].data[colorItemIndex].left * opt.unitWidth + 'px',
-                                background: opt.color[res[line - 1].data[colorItemIndex].colorIndex]
+                                background: opt.color[res[line - 1].data[colorItemIndex].colorIndex],
+                                opacity: res[line - 1].data[colorItemIndex].code == 'rangeBlank'? 0: 1
                             }"
                             :class="{
-                                last: colorItemIndex == colorItemComp.length-1 && colorItemComp.length > 1,
-                                first: colorItemIndex == 0 && colorItemComp.length > 1
+                                last: colorItemIndex == res[line - 1].data.length - 1 && res[line - 1].data.length > 1,
+                                first: colorItemIndex == 0 && res[line - 1].data.length > 1
                             }"
+                            @click.stop="colorItemActive(line - 1, colorItemIndex)"
                             :key="'colorItem' + colorItemIndex + 'colorItemComp250'">
 
-                            <span class="tip" :style="{color: opt.color[res[line - 1].data[colorItemIndex].colorIndex]}">
-                                {{res[line - 1].data[colorItemIndex].len}}
+                            <!-- 选中激活的状态 -->
+                            <div v-show="activeColorItem[0] == line - 1 && activeColorItem[1] == colorItemIndex">
+                                <div class="active-status-left-top"></div>
+                                <div class="active-status-right-top"></div>
+                                <div class="active-status-left-bottom"></div>
+                                <div class="active-status-right-bottom"></div>
+                            </div>
+
+                            <!-- 颜色块顶部显示值 -->
+                            <span 
+                                v-show="disabled? res[line - 1].data[colorItemIndex].len != 0: true" 
+                                class="tip" 
+                                :style="{color: opt.color[res[line - 1].data[colorItemIndex].colorIndex]}">
+                                {{
+                                    colorItemTopValueFn(
+                                        res[line - 1], 
+                                        colorItemIndex
+                                    )
+                                }}
                             </span>
 
-                            <span class="text nowrap">{{res[line - 1].data[colorItemIndex].name}}</span>
+                            <!-- 颜色块内部显示文本 -->
+                            <span :title="colorItemTextFn(res[line - 1], colorItemIndex).title" class="text nowrap">
+                                <span v-html="colorItemTextFn(res[line - 1], colorItemIndex).text"></span>
+                            </span>
 
                         </div>
                     </template>
 
                     <!-- 拖拽线条 -->
-                    <template v-for="(colorItem, colorItemIndex)  in colorItemComp">
+                    <template v-for="(colorItem, colorItemIndex)  in res[line - 1].data">
                          <div
                             v-show="
                                 !opt.allHideDrag
                                 &&
                                 (colorItemIndex == 0? !opt.hideFirstLeftDrag: true)
+                                &&
+                                disabled == false
                             "
                             v-if="res[line - 1].data[colorItemIndex]"
                             :key="'colorItem' + colorItemIndex + '-line250'"
@@ -111,6 +142,7 @@
                                 top: (40*(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].topIndex)/(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat)) + 'px',
                             }">
 
+                            <!-- 重合时的小色块 -->
                             <span 
                                 v-show="fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat != 1" 
                                 class="red-btn"
@@ -119,20 +151,21 @@
                                 }">
                             </span>
 
+                            <!-- 中间细竖线 -->
                             <span :style="{background: opt.color[res[line - 1].data[colorItemIndex].colorIndex]}" class="drag-line"></span>
 
                         </div>
                     </template>
 
                     <!-- 最后一根、拖拽线条 -->
-                    <template v-if="res[line - 1].data[colorItemComp.length - 1]">
+                    <template v-if="res[line - 1].data[res[line - 1].data.length - 1]">
                         <div class="right-drag"
                             :ref="'line'+line+'-last'"
-                            v-show="!opt.allHideDrag"
+                            v-show="!opt.allHideDrag && disabled == false"
                             @mousedown.stop.prevent="
                                 dragLast(
                                     line - 1, 
-                                    colorItemComp.length - 1,
+                                    res[line - 1].data.length - 1,
                                     $refs['wrap' + line],
                                     $refs['line'+line+'-last'],
                                     $event
@@ -140,11 +173,12 @@
                             "
                             :style="{
                                 'z-index': 250 + 100,
-                                left: (+res[line - 1].data[colorItemComp.length - 1].left + +res[line - 1].data[colorItemComp.length - 1].len) * opt.unitWidth - 5 + 'px',
+                                left: (+res[line - 1].data[res[line - 1].data.length - 1].left + +res[line - 1].data[res[line - 1].data.length - 1].len) * opt.unitWidth - 5 + 'px',
                                 height: 40/(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat) + 'px',
                                 top: (40*(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].topIndex)/(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat)) + 'px',
                             }">
 
+                            <!-- 重合时的小色块 -->
                             <span 
                                 v-show="fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat != 1"
                                 :style="{
@@ -153,6 +187,7 @@
                                 class="red-btn">
                             </span>
 
+                            <!-- 中间细竖线 -->
                             <span style="background: #fff" class="drag-line"></span>
 
                         </div>
@@ -162,7 +197,9 @@
 
             <!-- 垂直时间指示线 -->
             <div class="v-tip-line" :style="{left: tipLineLeft+'px'}" v-show="opacityTitle">
-                <span>{{tipLineData}}{{opt.hDataUnit}}</span>
+                <span>
+                    {{tipLineData}}{{opt.hDataUnit}}
+                </span>
             </div>
 
         </div>
@@ -173,37 +210,65 @@
 <script>
 
 /* 
-1、颜色块的数据格式eg：res[0].data
+    【颜色块的数据格式】
     {
-        //业务相关
+        // 图形数据相关
         name: colorItem[j].name,
-        code: colorItem[j].code,
-        //图形相关
+        code: colorItem[j].code, //其中 code="rangeBlank" 表示是空白的占位色块
         len: 0,
-        id: j,
-        colorIndex: j,
-    }
+        colorIndex: 0,
+        //图形色块内部id
+        id: 0,
 
-2、colorItem的数据格式
-    {
-        name: 'xxx',
-        code: 'yyy'
+        // extraData字段放入业务数据、额外数据
+        extraData: {}
     }
 */
 
 export default {
     name: "rangeControl",
+    props: {
+        disabled: {
+            default: false,
+        },
+        //颜色块内部显示文本
+        colorItemTextFn: {
+            type: Function,
+            default: (curLine, curLineIndex)=>{
+                return {
+                    text: curLine.data[curLineIndex].name,
+                    title: curLine.data[curLineIndex].name,
+                };
+            }
+        },
+        //颜色块上面显示值
+        colorItemTopValueFn: {
+            type: Function,
+            default: (curLine, curLineIndex)=>{
+                return curLine.data[curLineIndex].len;
+            }
+        },
+        //拖拽时，指示线顶部提示文本
+        tipTextFn: {
+            type: Function,
+            default: (rangeData, curLine, colorIndex, isLast=false)=>{
+                return rangeData[curLine].data[colorIndex].left;
+            }
+        },
+        
+    },
 	data() {
 		return {
             // 垂直指示线
             opacityTitle: false,
             tipLineLeft: 0,
-            tipLineData: 0,
-
+            tipLineData: '',
             // 原始图形数据
             _res: [],
             // 实时图形数据
             res: [],
+            // 实时选中的激活色块
+            activeColorItem: [],
             rangeKey: 0,
             opt: {},
 		};
@@ -217,15 +282,9 @@ export default {
             var d = this.opt.vData || []
             return d;
         },
-        colorItemComp(){
-            var d = this.opt.colorItem || []
-            return d;
-        },
         //拖拽线合并处理
         fixDragLine(){
             var res = this.jsonClone(this.res);
-            var _t250 = this.opt.colorItem || [];
-            var colorItemComp = this.jsonClone(_t250);
             var dragLineMap = {};
             for(var i=0; i<res.length; i++){
                 dragLineMap['line_'+i] = {};
@@ -245,7 +304,7 @@ export default {
                     }
                     repeatArr.sort();
                     // 该行repeatArr中的最大拖拽线和最右拖拽线是否重合
-                    if(this.colorItemComp.length != 0 && repeatArr.includes(res[i].data.length - 1)){
+                    if(res[i].data.length != 0 && repeatArr.includes(res[i].data.length - 1)){
                         var colRightIndex = repeatArr[repeatArr.length - 1];
                         if(res[i].data[colRightIndex].len == 0){
                             line_col.repeat = line_col.repeat + 1;
@@ -261,7 +320,7 @@ export default {
                         }
                     }
                 }
-                if(this.colorItemComp.length != 0){
+                if(res[i].data.length != 0){
                     dragLineMap['line_'+i]['colorIndex_last_repeat'] = {
                         repeat: lastRepeat, 
                         topIndex: lastTopIndex
@@ -280,25 +339,7 @@ export default {
         jsonClone(d){
             return JSON.parse(JSON.stringify(d))
         },
-        initRes(){
-            var res = [];
-            for(var i=0; i<this.vDataComp.length; i++){
-                var colorItem = this.colorItemComp;
-                var colorItemLength = colorItem.length;
-                res[i] = {start: 0, data: []};
-                for(var j=0; j<colorItemLength; j++){
-                    res[i].data[j] = {
-                        name: colorItem[j].name,
-                        code: colorItem[j].code,
-
-                        len: 0,
-                        id: j,
-                        colorIndex: j,
-                    };
-                };
-            };
-            return res;
-        },
+        //根据len，重新生成left
         setDragLeftPos(data){
             var d = this.jsonClone(data);
             for(var i=0; i<d.length; i++){
@@ -313,29 +354,34 @@ export default {
             };
             return d;
         },
+        //初始化图形
 		init(data, options){
             var defaultOpt = {
                 // 左上角标题
                 vhTitle: '时间',
                 // 横向时间数据
-                hData: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],
-                hDataUnit: 'h',
+                hData: ['hData1','hData2','hData3','hData4','hData5','hData6','hData7','hData8','hData9','hData10'],
+                hDataUnit: '',
                 // 纵向文本数据
-                vData: ['星期一','星期二','星期三','星期四','星期五','星期六','星期日'],
-                colorItem: [],
+                vData: ['vData1','vData2','vData3','vData4','vData5'],
+                //内置10种颜色序列
                 color: ['#71cf73', '#badf5f', '#0adddd', '#5797f0','#ffcb75',  '#e59332', '#ff8040', '#9f5000', '#8826e3', '#f13f31'],
                 // 分段间隔显示
-                rangeCount: 2,
+                rangeCount: 1,
                 // 每单位像素
-                unitWidth: 20,
+                unitWidth: 30,
                 //允许0.5单位
                 isHalf: true,
                 //隐藏第一个左边的拖拽
                 hideFirstLeftDrag: false,
                 //隐藏全部拖拽
 				allHideDrag: false,
-                // 是否松散型拖拽
+                // 是否松散型拖拽（拖拽到其他色块时是否停止，还是一起移动）
                 looseDrag: true,
+                //顶部横向标题的显示位置 ( left、 center )
+                titleTextAlign: 'left',
+                //顶部横向最右侧的额外标题（一般用于连续时间末尾显示）
+                lastTitle: '',
             };
             if(options){
                 var opt = this.jsonClone(options)
@@ -343,51 +389,75 @@ export default {
             }else{
                 this.opt = defaultOpt;
             };
-            //设置唯一索引、颜色索引
-            for(var i=0; i<data.length; i++){
-                for(var j=0; j<data[i].data.length; j++){
-                    var c = data[i].data[j];
-                    if(c.id == undefined){
-                        c.id = j;
-                    }
-                    if(c.colorIndex == undefined){
-                        c.colorIndex = j;
+            //设置唯一序列id、默认颜色索引
+            if(data){
+                for(var i=0; i<data.length; i++){
+                    for(var j=0; j<data[i].data.length; j++){
+                        var c = data[i].data[j];
+                        if(c.id == undefined){
+                            c.id = j;
+                        }
+                        if(c.colorIndex == undefined){
+                            if(j > this.opt.color.length - 1){
+                                c.colorIndex = this.opt.color.length - 1;
+                            }else{
+                                c.colorIndex = j;
+                            }
+                        }
                     }
                 }
-            }
+            };
             if(data){
                 this.res = this.setDragLeftPos(this.jsonClone(data));
-            }else{
-                this.res = this.setDragLeftPos(this.initRes());
             }
             this._res = this.jsonClone(this.res)
             this.rangeKey = Date.now();
         },
-        //添加一项，返回添加是否成功
-        addColorItem(name, index, code = '', colorIndex = 0){
+        //添加一项
+        addColorItem(name, index, 
+            {
+                /**
+                 * 图形相关
+                 */
+                code = '',
+                colorIndex = 0, //颜色索引，表示什么颜色
+                lineNum = -1, //默认-1，表示插入全部的行
+                defaultLen = 0, //默认色块的长度
+
+                /**
+                 * 额外数据
+                 */
+                extraData = {} //业务数据
+            }={}
+        ){
             var res = this.jsonClone(this.res);
-            var insertStatus = true;
-            for(var i=0; i<res.length; i++){
-                for(var j=0; j<res[i].data.length; j++){
-                    if(res[i].data[j].name == name){
-                        insertStatus = false;
-                        break ;
-                    }
-                }    
-            };
-            if(insertStatus == false) return false;
             //插入该项
             if(!code) code = name;
-            this.opt.colorItem.splice(index-1, 0, {name, code});
-            for(var i=0; i<res.length; i++){
-                res[i].data.splice(index-1, 0, {
-                    name,
-                    code,
-                    colorIndex,
-                    len: 5,
-                })
+            if(lineNum == -1){
+                for(var i=0; i<res.length; i++){
+                    res[i].data.splice(index-1, 0, {
+                        name,
+                        code,
+                        colorIndex,
+                        len: defaultLen,
+                        extraData,
+                    })
+                };
+            }else{
+                for(var i=0; i<res.length; i++){
+                    if(i == lineNum){
+                        res[i].data.splice(index-1, 0, {
+                            name,
+                            code,
+                            colorIndex,
+                            len: defaultLen,
+                            extraData,
+                        })
+                        break ;
+                    }
+                };
             };
-            //重设索引
+            //重设id索引
             for(var i=0; i<res.length; i++){
                 for(var j=0; j<res[i].data.length; j++){
                     var c = res[i].data[j];
@@ -397,17 +467,25 @@ export default {
             //设置位置
             this.res = this.setDragLeftPos(res);
             //重置原始记录
-            this._res = this.jsonClone(this.res)
-            return true;
+            this._res = this.jsonClone(this.res);
         },
         //删除一项
-        removeColorItem(index){
+        removeColorItem(index, lineNum = -1){
             var res = this.jsonClone(this.res);
             //删除该项
-            this.opt.colorItem.splice(index, 1);
-            for(var i=0; i<res.length; i++){
-                res[i].data.splice(index, 1)
-            };
+            if(lineNum == -1){
+                for(var i=0; i<res.length; i++){
+                    res[i].data.splice(index, 1)
+                };
+            }else{
+                for(var i=0; i<res.length; i++){
+                    if(lineNum == i){
+                        res[i].data.splice(index, 1);
+                        break ;
+                    }
+                };
+            }
+            
             //重新设置索引
             for(var i=0; i<res.length; i++){
                 for(var j=0; j<res[i].data.length; j++){
@@ -430,7 +508,7 @@ export default {
             //指示线
             this.opacityTitle = true;
             this.tipLineLeft = +lineEl.offsetLeft + 84;
-            this.tipLineData = res2[dataLine].data[colorItemIndex].left;
+            this.tipLineData = this.tipTextFn(this.res, dataLine, colorItemIndex);
 
             document.onmousemove = e2 => {
                 var res = this.jsonClone(res2)
@@ -513,7 +591,6 @@ export default {
                                 res[dataLine].data[colorItemIndex].len = +curLen + +curLeft;
                             }
                         } else if(+curLeft + +disCount >= totalLen){
-                            console.log('right')
                             //右侧所有项len都被拉成0
                             for(
                                 var i=res[dataLine].data.length-1;
@@ -645,7 +722,7 @@ export default {
                 this.res = this.setDragLeftPos(res);
                 //指示线
                 this.tipLineLeft = +lineEl.offsetLeft + 84;
-                this.tipLineData = +this.res[dataLine].data[colorItemIndex].left
+                this.tipLineData = this.tipTextFn(this.res, dataLine, colorItemIndex)
             };
             document.onmouseup = e2 => {
                 e2.preventDefault();
@@ -664,7 +741,7 @@ export default {
             //指示线
             this.opacityTitle = true;
             this.tipLineLeft = +lineEl.offsetLeft + 84;
-            this.tipLineData = +res2[dataLine].data[colorItemLength].left + +res2[dataLine].data[colorItemLength].len;
+            this.tipLineData = this.tipTextFn(res2, dataLine, colorItemLength, true);
             document.onmousemove = e2 => {
                 var res = this.jsonClone(res2)
                 e2.preventDefault();
@@ -746,7 +823,7 @@ export default {
                 this.res = this.setDragLeftPos(res);
                 //指示线
                 this.tipLineLeft = +lineEl.offsetLeft + 84;
-                this.tipLineData = +this.res[dataLine].data[colorItemLength].left + +this.res[dataLine].data[colorItemLength].len;
+                this.tipLineData = this.tipTextFn(this.res, dataLine, colorItemLength, true);
             };
             document.onmouseup = e2 => {
                 e2.preventDefault();
@@ -754,6 +831,10 @@ export default {
                 document.onmousemove = null;
                 document.onmouseup = null;
             }; 
+        },
+        colorItemActive(line, colorItemIndex){
+            this.activeColorItem = [line, colorItemIndex];
+            this.$emit('colorItemActive', line, colorItemIndex)
         },
         resetLine(line){
             var res = this.jsonClone(this.res);
@@ -841,9 +922,17 @@ export default {
                 left: -6px;
                 top: 0px;
             }
+            &.title-data-center{
+                text-align: center;
+                .span-text{
+                    position: relative;
+                    left: 0px;
+                    top: 0px;
+                }
+            }
             .span-last{
                 position: absolute;
-                right: 0px;
+                right: -12px;
                 top: 0px;
             }
         }
@@ -939,16 +1028,51 @@ export default {
                 top: 7px;
                 position: absolute;
                 z-index: 201;
+                .active-status-left-top,
+                .active-status-right-top,
+                .active-status-left-bottom,
+                .active-status-right-bottom{
+                    position: absolute;
+                    z-index: 203;
+                    width: 8px;
+                    height: 8px;
+                }
+                .active-status-left-top{
+                    top: -12px;
+                    left: 5px;
+                    border-top:2px solid red;
+                    border-left:2px solid red;
+                }
+                .active-status-right-top{
+                    top: -12px;
+                    right: 5px;
+                    border-right:2px solid red;
+                    border-top:2px solid red;
+                }
+                .active-status-left-bottom{
+                    bottom: -12px;
+                    left: 5px;
+                    border-left:2px solid red;
+                    border-bottom:2px solid red;
+                }
+                .active-status-right-bottom{
+                    bottom: -12px;
+                    right: 5px;
+                    border-right:2px solid red;
+                    border-bottom:2px solid red;
+                }
                 .tip{
                     position: absolute;
                     z-index: 999;
                     left: 50%;
+                    transform: translate(-50%, 0);
                     height: 12px;
                     line-height: 12px;
                     top: -18px;
                     color: white;
                     font-size: 12px;
                     opacity: 0.95;
+                    white-space: nowrap;
                 }
                 .text{
                     display: block;

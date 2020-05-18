@@ -32,6 +32,7 @@
 export default {
 	data() {
 		return {
+			//图形数据，注意数据格式必须是这种
 			range: [
 				{
 					start: 0,

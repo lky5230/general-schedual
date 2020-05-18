@@ -144,7 +144,7 @@ export default {
 	lastTitle: '',
 }
 ```
-#### 默认配置
+#### 色块的数据格式
 ```javascript
 //【色块的数据格式】
     colorItem : {

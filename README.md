@@ -1,14 +1,30 @@
 # general_schedual
 
-> 基于vue的通用连续排班控件
+> 基于vue的通用排班核心控件，可自定义多种排班、排班、排期等业务场景
 
 ![image](https://github.com/lky5230/general_schedual/blob/master/demo.png)
+![image](https://github.com/lky5230/general_schedual/blob/master/demo2.png)
 
 #### JS代码
 ```javascript
 <template>
 	<div>
-		<rangeControl ref="rangeControl"></rangeControl>
+		/**
+		* EXAMPLE
+		*/
+		<rangeControl  
+			@colorItemActive="colorItemActive"
+			:disabled="false"
+			:colorItemTextFn="(curLine,l)=>{
+				return {
+					text: `<span style='background: #333; color: #fff; padding: 2px'>${curLine.data[l].name}</span>`,
+					title: curLine.data[l].name
+				}
+			}"
+			:colorItemTopValueFn="(curLine,l)=>''"
+			:tipTextFn="(rangeData, curLine, colorIndex, isLast)=>''"
+			ref="rangeControl">
+		</rangeControl>
 	</div>
 </template>
 
@@ -16,7 +32,6 @@
 export default {
 	data() {
 		return {
-      			rangeModel: [],
 			range: [
 				{
 					start: 0,
@@ -37,49 +52,40 @@ export default {
 				{
 					start: 0,
 					data: []
-				},
-				{
-					start: 0,
-					data: []
-				},
-				{
-					start: 0,
-					data: []
-				},
-			],
-
+				}
+				//... vData有多少个，这里就有多少条
+			]
 		};
 	},
 	mounted() {
 	
 		/* 
-		参数1是图形数据格式（一般传到服务端完整保存它，前端获取它直接用），传null会自动初始化一个空白图形数据格式
-		参数2是配置，其中colorItem是连续分段的名称数组（ 必传，形式如 [{name: '', code: ''}] ）
+		* 参数1：图形数据（一般传到服务端完整保存它，前端获取它直接用）
+		* 参数2：配置
 		*/
-		this.$refs.rangeControl.init(this.range, {
-			colorItem: this.rangeModel
-		})
+		this.$refs.rangeControl.init(this.range, {});
 		
-		/* 有初始数据的初始化
+		/* 有初始图形数据的初始化
 		this.$refs.rangeControl.init(
 			[
 				{
 					start: 0,
 					data: [
-						{name: '等级1', code: 'level1', len: 1, id: 0, colorIndex: 0},
-						{name: '等级2', code: 'level2', len: 1, id: 1, colorIndex: 1}
+						{name: '等级1', code: 'level1', len: 1, id: 0, colorIndex: 3},
+						{name: '等级2', code: 'level2', len: 1, id: 1, colorIndex: 8},
+						{name: '等级3', code: 'level3', len: 1, id: 2, colorIndex: 3}
 					]
 				}, 
 				{
 					start: 0,
 					data: [
-						{name: '等级1', code: 'level1', len: 2, id: 0, colorIndex: 0},
-						{name: '等级2', code: 'level2', len: 0, id: 1, colorIndex: 1}
+						{name: '等级1', code: 'level1', len: 2, id: 0, colorIndex: 2},
+						{name: '等级2', code: 'level2', len: 0, id: 1, colorIndex: 1},
+						{name: '等级3', code: 'level3', len: 1, id: 2, colorIndex: 6}
 					]
 				}, 
-			]
+			],
 			{
-				colorItem: [{name: '等级1', code: 'level1'},{name: '等级2', code: 'level2'}],
 				hData: [0,1,2,3,4,5,6,7,8,9],  // 横向时间数据
 				vData: ['星期一','星期二'],  // 纵向文本数据
 			}
@@ -87,6 +93,10 @@ export default {
 		*/
 		
 	},
+	methods: {
+		//点中某个色块
+		colorItemActive(..e){}
+	}
 }
 </script>
 ```
@@ -94,45 +104,129 @@ export default {
 #### 默认配置
 ```javascript
 {
-	vhTitle: '时间',  // 左上角标题
-	hData: [0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23],  // 横向连续数据
-	hDataUnit: 'h',//横向数据显示的后缀名称
-	vData: ['星期一','星期二','星期三','星期四','星期五','星期六','星期日'],  // 纵向文本数据
-  
-	/* 如 [{name: '等级1', code: 'level1'}] */
-	colorItem: [],  
-  
-	color: ['#71cf73', '#badf5f', '#0adddd', '#5797f0','#ffcb75',  '#e59332', '#ff8040', '#9f5000', '#8826e3', '#f13f31'],  //默认颜色序列
-	rangeCount: 2,  // 分段显示的间隔
-	unitWidth: 20,  // 每单位宽度
-	isHalf: true,  //是否允许拖拽0.5个单位
-	hideFirstLeftDrag: false,  //隐藏第一个左边的拖拽
-	allHideDrag: false,  //隐藏全部拖拽
-	// 是否松散型拖拽，就是拖拽时碰到两边其他颜色块时会不会停止，默认不停止
+	// 左上角标题
+	vhTitle: '时间',
+	
+	// 横向数据
+	hData: ['hData1','hData2','hData3','hData4','hData5','hData6','hData7','hData8','hData9','hData10'],
+	
+	// 横向数据后缀
+	hDataUnit: '',
+	
+	// 纵向文本数据
+	vData: ['vData1','vData2','vData3','vData4','vData5'],
+	
+	//内置10种颜色序列
+	color: ['#71cf73', '#badf5f', '#0adddd', '#5797f0','#ffcb75',  '#e59332', '#ff8040', '#9f5000', '#8826e3', '#f13f31'],
+	
+	// 分段间隔显示
+	rangeCount: 1,
+	
+	// 每单位像素
+	unitWidth: 30,
+	
+	//允许0.5单位
+	isHalf: true,
+	
+	//隐藏第一个左边的拖拽
+	hideFirstLeftDrag: false,
+	
+	//隐藏全部拖拽
+	allHideDrag: false,
+	
+	// 是否松散型拖拽（拖拽到其他色块时是否停止，还是一起移动）
 	looseDrag: true,
+	
+	//顶部横向标题的显示位置 ( left、 center )
+	titleTextAlign: 'left',
+	
+	//顶部横向最右侧的额外标题（一般用于连续时间末尾显示）
+	lastTitle: '',
 }
 ```
+#### 默认配置
+```javascript
+//【色块的数据格式】
+    colorItem : {
+        // 图形数据相关
+        name: colorItem[j].name,
+        code: colorItem[j].code, //其中 code="rangeBlank" 表示是空白的占位色块
+        len: 0,
+        colorIndex: 0,
+        //图形色块内部id
+        id: 0,
 
-#### 实例方法
+        // extraData字段放入业务数据、额外数据
+        extraData: {}
+    }
+```
+
+#### props
+```javascript
+	props: {
+		disabled: {
+		    default: false,
+		},
+		//颜色块内部显示文本，其中text可以是html
+		colorItemTextFn: {
+		    type: Function,
+		    //参数（当前行实例，当前色块索引）
+		    default: (curLine, curLineIndex)=>{
+			return {
+			    text: curLine.data[curLineIndex].name,
+			    title: curLine.data[curLineIndex].name,
+			};
+		    }
+		},
+		//颜色块上面显示值
+		colorItemTopValueFn: {
+		    type: Function,
+		    //参数（当前行实例，当前色块索引）
+		    default: (curLine, curLineIndex)=>{
+			return curLine.data[curLineIndex].len;
+		    }
+		},
+		//拖拽时，指示线顶部提示文本
+		tipTextFn: {
+		    type: Function,
+		    //参数（图形数据，当前行数，当前色块索引，是否是最后一个拖拽线）
+		    default: (rangeData, curLineNum, colorIndex, isLast=false)=>{
+			return rangeData[curLineNum].data[colorIndex].left;
+		    }
+		},
+	}
+```
+
+#### 主要的实例方法
 ```javascript
 
 //初始化控件
 this.$refs.rangeControl.init(data, opt)
 
-//每个横轴上插入一个名称，name表示名称，index表示插入位置
-this.$refs.rangeControl.addColorItem(name, index)
+//横轴上插入名称，name表示名称，index表示插入位置，参数3是可选配置
+this.$refs.rangeControl.addColorItem(name, index, {
+	/**
+	 * 图形相关
+	 */
+	code = '',
+	colorIndex = 0, //颜色索引，表示什么颜色
+	lineNum = -1, //默认-1，表示插入全部的行，0表示只在第一行插入，1表示只在第2行插入
+	defaultLen = 0, //默认色块的长度
 
-//每个横轴上删除位置在index上的名称
-this.$refs.rangeControl.removeColorItem(index)
+	/**
+	 * 额外数据
+	 */
+	extraData = {} //业务数据建议统一放这里
+})
+
+//每个横轴上删除位置在index上的名称，参数1是删除项在横轴的的索引，参数2默认-1，表示所有行都删除index项，0表示只删除第一行的index项
+this.$refs.rangeControl.removeColorItem(index, lineNum)
 
 //获取颜色序列
 this.$refs.rangeControl.getColors()
 
 //获取实时的图形数据
 this.$refs.rangeControl.getData()
-
-//返回实时的colorItems，也就是横向颜色块有哪些
-this.$refs.rangeControl.getColorItems()
         
 ```
 

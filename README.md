@@ -168,6 +168,53 @@ export default {
 		disabled: {
 		    default: false,
 		},
+		maxWidth: {
+		    default: 'auto',
+		}, 
+		maxHeight: {
+		    default: 'auto',
+		},
+		/** 每行合并显示的配置
+		 * {    //编码
+			code_1: { 
+			    top: 0,//比例
+			    height: 1,//比例
+			    zIndex: 1
+			},
+			code_5: {
+			    top: 0,
+			    height: 1,
+			    zIndex: 1
+			},
+			code_2: {
+			    top: 0.2,
+			    height: 0.6,
+			    zIndex: 2
+			},
+			code_4: {
+			    top: 0.2,
+			    height: 0.6,
+			    zIndex: 3
+			},
+			code_3: {
+			    top: 0.2,
+			    height: 0.6,
+			    zIndex: 3
+			},
+		    } 
+		 * */
+		 //若要将每行合并成一行显示，则配置它
+		combineAllLine: {
+		    default: false,
+		},
+		//是否显示每行操作列
+		showOperationBtn: {
+		    default: true,
+		},
+		//是否显示顶部
+		showhDataHead: {
+		    default: true,
+		},
 		//颜色块内部显示文本，其中text可以是html
 		colorItemTextFn: {
 		    type: Function,
@@ -197,8 +244,19 @@ export default {
 		},
 	}
 ```
-
 #### 主要的实例方法
+
+```javascript
+#### 事件
+	add（添加色块完成事件，参数是添加完毕后的图形数据）
+	remove（删除色块完成事件，参数是删除完毕后的图形数据）
+	drag（拖拽色块左右把手的事件，参数是更新后的图形数据）
+	colorItemActive（点击色块时触发，参数1：色块所在行，参数2：色块所在列索引）
+	wrapMouseOut（鼠标离开整个容器时触发）
+	lineMouseOver（每行mouseover时触发，参数：点击的行数）
+	lineClick（参数：点击的行数）
+```
+
 ```javascript
 
 //初始化控件
@@ -228,6 +286,15 @@ this.$refs.rangeControl.getColors()
 
 //获取实时的图形数据
 this.$refs.rangeControl.getData()
+
+//获取点中的色块
+this.$refs.rangeControl.getActiveColorItem()
+
+//获取实时的配置
+this.$refs.rangeControl.getOpt()
+
+//在具有maxHeight时，获取图形上下滚动条的距离
+this.$refs.rangeControl.getScroll()
         
 ```
 

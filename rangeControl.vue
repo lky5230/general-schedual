@@ -1,7 +1,22 @@
 <template>
-	<div @click="activeColorItem=[]" :key="rangeKey" class="week-range-wrap">
+	<div 
+        @click="activeColorItem=[]" 
+        :style="{
+            'max-width': maxWidth=='auto'?'auto':maxWidth+'px', 
+            'max-height': maxHeight=='auto'?'auto':maxHeight+'px',
+        }"
+        :key="rangeKey" 
+        ref="weekRangeWrap"
+        @mouseleave="wrapMouseOut"
+        @scroll="weekRangeWrapScroll"
+        class="week-range-wrap">
+
         <!-- 顶部 -->
-        <div class="title-text" :class="{opac: opacityTitle}">
+        <div 
+            v-show="showhDataHead" 
+            class="title-text" 
+            :style="{top: headTop + 'px'}" 
+            :class="{opac: opacityTitle}">
             <div class="title-v0">{{opt.vhTitle}}</div>
             <div 
                 class="title-data" 
@@ -18,41 +33,222 @@
                 </span>
                 <!-- 最后一个文本 -->
                 <span class="span-last" v-if="hDataComp.length - 1 == hIndex && opt.lastTitle != ''">
-                    {{opt.lastTitle}}{{opt.hDataUnit}}
+                    {{opt.lastTitle}}
                 </span>
             </div>
         </div>
+        
+        <!-- 绘图区域 -->
+        <div style="position: relative;" v-if="combineAllLine == false">
+            <!-- 撑出滚动条 -->
+            <div :style="{height: (vDataComp.length * 50 + 10) + 'px'}"></div>
 
-        <div style="position: relative;">
-            <div class="week-wrap" v-for="line in vDataComp.length" :key="line+'vDataComp'">
+            <template v-for="line in vDataComp.length">
+                <div class="week-wrap"
+                    style="position: absolute; left: 0px; z-index: 1999; margin-top: 0px;"
+                    v-if="isRender(((line - 1) * 50 + 10), vDataComp.length * 50 + 10)"
+                    :style="{top: ((line - 1) * 50 + 10) + 'px'}"
+                    @mouseover="lineMouseOver(line - 1)"
+                    @click.stop="lineClick(line - 1)"
+                    :key="line+'vDataComp'">
 
-                <!-- 左侧列（每行） -->
-                <div class="title-v nowrap">
-                    <span :title="vDataComp[line - 1]">
-                        {{vDataComp[line - 1]}}
-                    </span>
-                    <div v-show="opt.allHideDrag == false && disabled == false" class="operation-btn">
-                        <div class="operation">
-                            <!-- 复制到上一行 -->
-                            <div class="copy-up-icon" v-show="line != 1" @click="copyToPrev(line-1)" title="复制到上一行">
-                                <i class="el-icon-top"></i>
-                            </div>
-                            
-                            <!-- 恢复按钮 -->
-                            <div class="reset-icon" @click="resetLine(line-1)" title="恢复">
-                                <i class="el-icon-refresh-left"></i>
-                            </div>
+                    <!-- 左侧列（每行） -->
+                    <div class="title-v nowrap">
+                        <span :title="vDataComp[line - 1]">
+                            {{vDataComp[line - 1]}}
+                        </span>
+                        <div v-show="opt.allHideDrag == false && disabled == false && showOperationBtn" class="operation-btn">
+                            <div class="operation">
+                                <!-- 复制到上一行 -->
+                                <div class="copy-up-icon" v-show="line != 1" @click="copyToPrev(line-1)" title="复制到上一行">
+                                    <i class="el-icon-top"></i>
+                                </div>
+                                
+                                <!-- 恢复按钮 -->
+                                <div class="reset-icon" @click="resetLine(line-1)" title="恢复">
+                                    <i class="el-icon-refresh-left"></i>
+                                </div>
 
-                            <!-- 复制到下一行 -->
-                            <div class="copy-down-icon" v-show="line != res.length" @click="copyToNext(line-1)" title="复制到下一行">
-                                <i class="el-icon-bottom"></i>
+                                <!-- 复制到下一行 -->
+                                <div class="copy-down-icon" v-show="line != res.length" @click="copyToNext(line-1)" title="复制到下一行">
+                                    <i class="el-icon-bottom"></i>
+                                </div>
                             </div>
                         </div>
                     </div>
+
+                    <!-- 绘图区域（每行） -->
+                    <div :ref="'wrap' + line" class="title-data2-wrap">
+
+                        <!-- 背景格子 -->
+                        <div
+                            class="title-data2" 
+                            :class="{
+                                last: hIndex == hDataComp.length - 1
+                            }"
+                            :style="{width: opt.unitWidth + 'px'}" 
+                            v-for="(hItem, hIndex) in hDataComp"
+                            :key="hIndex+'hDataComp'">
+                        </div>
+
+                        <template v-if="res[line - 1]">
+
+                            <!-- 颜色格子 （正常）-->
+                            <template v-for="(colorItem, colorItemIndex)  in res[line - 1].data">
+                                <div
+                                    class="colorItem"
+                                    v-if="res[line - 1].data[colorItemIndex]"
+                                    :style="{
+                                        width: res[line - 1].data[colorItemIndex].len * opt.unitWidth + 'px',
+                                        left: res[line - 1].data[colorItemIndex].left * opt.unitWidth + 'px',
+                                        background: res[line - 1].data[colorItemIndex].color? res[line - 1].data[colorItemIndex].color:opt.color[res[line - 1].data[colorItemIndex].colorIndex],
+                                        opacity: res[line - 1].data[colorItemIndex].code == 'rangeBlank'? 0: 1
+                                    }"
+                                    :class="{
+                                        last: colorItemIndex == res[line - 1].data.length - 1 && res[line - 1].data.length > 1,
+                                        first: colorItemIndex == 0 && res[line - 1].data.length > 1
+                                    }"
+                                    @click="colorItemActive(line - 1, colorItemIndex)"
+                                    :key="'colorItem' + colorItemIndex + 'colorItemComp250'">
+
+                                    <!-- 选中激活的状态 -->
+                                    <div v-show="activeColorItem[0] == line - 1 && activeColorItem[1] == colorItemIndex">
+                                        <div class="active-status-left-top"></div>
+                                        <div class="active-status-right-top"></div>
+                                        <div class="active-status-left-bottom"></div>
+                                        <div class="active-status-right-bottom"></div>
+                                    </div>
+
+                                    <!-- 颜色块顶部显示值 -->
+                                    <span 
+                                        v-show="disabled? res[line - 1].data[colorItemIndex].len != 0: true" 
+                                        class="tip" 
+                                        :style="{color: res[line - 1].data[colorItemIndex].color?res[line - 1].data[colorItemIndex].color:opt.color[res[line - 1].data[colorItemIndex].colorIndex]}">
+                                        {{
+                                            colorItemTopValueFn(
+                                                res[line - 1], 
+                                                colorItemIndex
+                                            )
+                                        }}
+                                    </span>
+
+                                    <!-- 颜色块内部显示文本 -->
+                                    <span :title="colorItemTextFn(res[line - 1], colorItemIndex).title" class="text nowrap">
+                                        <span v-html="colorItemTextFn(res[line - 1], colorItemIndex).text"></span>
+                                    </span>
+
+                                </div>
+                            </template>
+
+                            <!-- 拖拽线条 -->
+                            <template v-for="(colorItem, colorItemIndex)  in res[line - 1].data">
+                                <div
+                                    v-show="
+                                        !opt.allHideDrag
+                                        &&
+                                        (colorItemIndex == 0? !opt.hideFirstLeftDrag: true)
+                                        &&
+                                        disabled == false
+                                    "
+                                    v-if="res[line - 1].data[colorItemIndex]"
+                                    :key="'colorItem' + colorItemIndex + '-line250'"
+                                    class="right-drag"
+                                    :ref="'line-'+(line-1)+colorItemIndex"
+                                    @click.stop
+                                    @mousedown.stop.prevent="
+                                        drag(
+                                            line - 1, 
+                                            colorItemIndex,
+                                            $refs['wrap' + line],
+                                            $refs['line-'+(line-1)+colorItemIndex],
+                                            $event
+                                        )
+                                    "
+                                    :style="{
+                                        'z-index': 250 + colorItemIndex,
+                                        left: res[line - 1].data[colorItemIndex].left * opt.unitWidth - 5 + 'px',
+                                        height: 40/(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat) + 'px',
+                                        top: (40*(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].topIndex)/(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat)) + 'px',
+                                    }">
+
+                                    <!-- 重合时的小色块 -->
+                                    <span 
+                                        v-show="fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat != 1" 
+                                        class="red-btn"
+                                        :style="{
+                                            background: res[line - 1].data[colorItemIndex].color?res[line - 1].data[colorItemIndex].color:opt.color[res[line - 1].data[colorItemIndex].colorIndex],
+                                        }">
+                                    </span>
+
+                                    <!-- 中间细竖线 -->
+                                    <span :style="{background: res[line - 1].data[colorItemIndex].color?res[line - 1].data[colorItemIndex].color:opt.color[res[line - 1].data[colorItemIndex].colorIndex]}" class="drag-line"></span>
+
+                                </div>
+                            </template>
+
+                            <!-- 最后一根、拖拽线条 -->
+                            <template v-if="res[line - 1].data[res[line - 1].data.length - 1]">
+                                <div class="right-drag"
+                                    :ref="'line'+line+'-last'"
+                                    v-show="!opt.allHideDrag && disabled == false"
+                                    @click.stop
+                                    @mousedown.stop.prevent="
+                                        dragLast(
+                                            line - 1, 
+                                            res[line - 1].data.length - 1,
+                                            $refs['wrap' + line],
+                                            $refs['line'+line+'-last'],
+                                            $event
+                                        )
+                                    "
+                                    :style="{
+                                        'z-index': 250 + 100,
+                                        left: (+res[line - 1].data[res[line - 1].data.length - 1].left + +res[line - 1].data[res[line - 1].data.length - 1].len) * opt.unitWidth - 5 + 'px',
+                                        height: 40/(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat) + 'px',
+                                        top: (40*(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].topIndex)/(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat)) + 'px',
+                                    }">
+
+                                    <!-- 重合时的小色块 -->
+                                    <span 
+                                        v-show="fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat != 1"
+                                        :style="{
+                                            background: '#fff',
+                                        }" 
+                                        class="red-btn">
+                                    </span>
+
+                                    <!-- 中间细竖线 -->
+                                    <span style="background: #fff" class="drag-line"></span>
+
+                                </div>
+                            </template>
+
+                        </template>
+
+                    </div>
+
+                </div>
+            </template>
+
+            <!-- 垂直时间指示线 -->
+            <div class="v-tip-line" :style="{left: tipLineLeft+'px', top: (0 + +headTop) + 'px'}" v-show="opacityTitle">
+                <span>
+                    {{tipLineData}}
+                </span>
+            </div>
+
+        </div>
+
+        <!-- 合并成一行的绘图区域 -->
+        <div style="position: relative;" v-if="combineAllLine">
+            <div class="week-wrap"  key="合并航">
+                <!-- 左侧列（每行） -->
+                <div class="title-v nowrap">
+                    <span>&nbsp;</span>
                 </div>
 
                 <!-- 绘图区域（每行） -->
-                <div :ref="'wrap' + line" class="title-data2-wrap">
+                <div class="title-data2-wrap">
 
                     <!-- 背景格子 -->
                     <div
@@ -65,151 +261,44 @@
                         :key="hIndex+'hDataComp'">
                     </div>
 
-                    <!-- 颜色格子 -->
-                    <template v-for="(colorItem, colorItemIndex)  in res[line - 1].data">
-                        <div
-                            class="colorItem"
-                            v-if="res[line - 1].data[colorItemIndex]"
-                            :style="{
-                                width: res[line - 1].data[colorItemIndex].len * opt.unitWidth + 'px',
-                                left: res[line - 1].data[colorItemIndex].left * opt.unitWidth + 'px',
-                                background: opt.color[res[line - 1].data[colorItemIndex].colorIndex],
-                                opacity: res[line - 1].data[colorItemIndex].code == 'rangeBlank'? 0: 1
-                            }"
-                            :class="{
-                                last: colorItemIndex == res[line - 1].data.length - 1 && res[line - 1].data.length > 1,
-                                first: colorItemIndex == 0 && res[line - 1].data.length > 1
-                            }"
-                            @click.stop="colorItemActive(line - 1, colorItemIndex)"
-                            :key="'colorItem' + colorItemIndex + 'colorItemComp250'">
+                    <!-- 每行的颜色格子（合并到一行）-->
+                    <template v-for="(linecolorItem, linecolorItemIndex)  in res">
+                        <template v-for="(colorItem, colorItemIndex)  in linecolorItem.data">
+                            <div
+                                class="colorItem"
+                                :style="{
+                                    width: colorItem.len * opt.unitWidth + 'px',
+                                    left: colorItem.left * opt.unitWidth + 'px',
+                                    background: colorItem.color?colorItem.color:opt.color[colorItem.colorIndex],
+                                    opacity: colorItem.code == 'rangeBlank'? 0: 1,
 
-                            <!-- 选中激活的状态 -->
-                            <div v-show="activeColorItem[0] == line - 1 && activeColorItem[1] == colorItemIndex">
-                                <div class="active-status-left-top"></div>
-                                <div class="active-status-right-top"></div>
-                                <div class="active-status-left-bottom"></div>
-                                <div class="active-status-right-bottom"></div>
+                                    top: 40 * colorItem.combine.top + 'px',
+                                    height: 40 * colorItem.combine.height + 'px',
+                                    zIndex: 250 + colorItem.combine.zIndex*1 ,
+                                }"
+                                :key="'colorItem' + colorItemIndex + linecolorItemIndex + 'colorItemComp250'">
+
                             </div>
-
-                            <!-- 颜色块顶部显示值 -->
-                            <span 
-                                v-show="disabled? res[line - 1].data[colorItemIndex].len != 0: true" 
-                                class="tip" 
-                                :style="{color: opt.color[res[line - 1].data[colorItemIndex].colorIndex]}">
-                                {{
-                                    colorItemTopValueFn(
-                                        res[line - 1], 
-                                        colorItemIndex
-                                    )
-                                }}
-                            </span>
-
-                            <!-- 颜色块内部显示文本 -->
-                            <span :title="colorItemTextFn(res[line - 1], colorItemIndex).title" class="text nowrap">
-                                <span v-html="colorItemTextFn(res[line - 1], colorItemIndex).text"></span>
-                            </span>
-
-                        </div>
+                        </template>
                     </template>
 
-                    <!-- 拖拽线条 -->
-                    <template v-for="(colorItem, colorItemIndex)  in res[line - 1].data">
-                         <div
-                            v-show="
-                                !opt.allHideDrag
-                                &&
-                                (colorItemIndex == 0? !opt.hideFirstLeftDrag: true)
-                                &&
-                                disabled == false
-                            "
-                            v-if="res[line - 1].data[colorItemIndex]"
-                            :key="'colorItem' + colorItemIndex + '-line250'"
-                            class="right-drag"
-                            :ref="'line-'+(line-1)+colorItemIndex"
-                            @click.stop
-                            @mousedown.stop.prevent="
-                                drag(
-                                    line - 1, 
-                                    colorItemIndex,
-                                    $refs['wrap' + line],
-                                    $refs['line-'+(line-1)+colorItemIndex],
-                                    $event
-                                )
-                            "
-                            :style="{
-                                'z-index': 250 + colorItemIndex,
-                                left: res[line - 1].data[colorItemIndex].left * opt.unitWidth - 5 + 'px',
-                                height: 40/(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat) + 'px',
-                                top: (40*(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].topIndex)/(fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat)) + 'px',
-                            }">
-
-                            <!-- 重合时的小色块 -->
-                            <span 
-                                v-show="fixDragLine['line_'+(line-1)]['colorIndex_'+colorItemIndex+'_repeat'].repeat != 1" 
-                                class="red-btn"
-                                :style="{
-                                    background: opt.color[res[line - 1].data[colorItemIndex].colorIndex],
-                                }">
-                            </span>
-
-                            <!-- 中间细竖线 -->
-                            <span :style="{background: opt.color[res[line - 1].data[colorItemIndex].colorIndex]}" class="drag-line"></span>
-
-                        </div>
-                    </template>
-
-                    <!-- 最后一根、拖拽线条 -->
-                    <template v-if="res[line - 1].data[res[line - 1].data.length - 1]">
-                        <div class="right-drag"
-                            :ref="'line'+line+'-last'"
-                            v-show="!opt.allHideDrag && disabled == false"
-                            @click.stop
-                            @mousedown.stop.prevent="
-                                dragLast(
-                                    line - 1, 
-                                    res[line - 1].data.length - 1,
-                                    $refs['wrap' + line],
-                                    $refs['line'+line+'-last'],
-                                    $event
-                                )
-                            "
-                            :style="{
-                                'z-index': 250 + 100,
-                                left: (+res[line - 1].data[res[line - 1].data.length - 1].left + +res[line - 1].data[res[line - 1].data.length - 1].len) * opt.unitWidth - 5 + 'px',
-                                height: 40/(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat) + 'px',
-                                top: (40*(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].topIndex)/(fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat)) + 'px',
-                            }">
-
-                            <!-- 重合时的小色块 -->
-                            <span 
-                                v-show="fixDragLine['line_'+(line-1)]['colorIndex_last_repeat'].repeat != 1"
-                                :style="{
-                                    background: '#fff',
-                                }" 
-                                class="red-btn">
-                            </span>
-
-                            <!-- 中间细竖线 -->
-                            <span style="background: #fff" class="drag-line"></span>
-
-                        </div>
-                    </template>
                 </div>
             </div>
-
-            <!-- 垂直时间指示线 -->
-            <div class="v-tip-line" :style="{left: tipLineLeft+'px'}" v-show="opacityTitle">
-                <span>
-                    {{tipLineData}}{{opt.hDataUnit}}
-                </span>
-            </div>
-
         </div>
 
 	</div>
 </template>
 
 <script>
+/** 【事件】
+ * add 
+ * remove 
+ * drag 
+ * colorItemActive
+ * wrapMouseOut
+ * lineMouseOver
+ * lineClick
+ */
 
 /* 
     【颜色块的数据格式】
@@ -233,34 +322,96 @@ export default {
         disabled: {
             default: false,
         },
+        maxWidth: {
+            default: 'auto',
+        }, 
+        maxHeight: {
+            default: 'auto',
+        },
+        /** 每行合并显示的配置
+         * {    //编码
+                code_1: { 
+                    top: 0,//比例
+                    height: 1,//比例
+                    zIndex: 1
+                },
+                code_5: {
+                    top: 0,
+                    height: 1,
+                    zIndex: 1
+                },
+                code_2: {
+                    top: 0.2,
+                    height: 0.6,
+                    zIndex: 2
+                },
+                code_4: {
+                    top: 0.2,
+                    height: 0.6,
+                    zIndex: 3
+                },
+                code_3: {
+                    top: 0.2,
+                    height: 0.6,
+                    zIndex: 3
+                },
+            } 
+         * */
+        combineAllLine: {
+            default: false,
+        },
+        showOperationBtn: {
+            default: true,
+        },
+        showhDataHead: {
+            default: true,
+        },
         //颜色块内部显示文本
         colorItemTextFn: {
             type: Function,
             default: (curLine, curLineIndex)=>{
-                return {
-                    text: curLine.data[curLineIndex].name,
-                    title: curLine.data[curLineIndex].name,
-                };
+                if(curLine.data[curLineIndex]){
+                    return {
+                        text: curLine.data[curLineIndex].name,
+                        title: curLine.data[curLineIndex].name,
+                    };
+                }else{
+                    return {
+                        text: '',
+                        title: '',
+                    };
+                }
             }
         },
         //颜色块上面显示值
         colorItemTopValueFn: {
             type: Function,
             default: (curLine, curLineIndex)=>{
-                return curLine.data[curLineIndex].len;
+                if(curLine.data[curLineIndex]){
+                    return curLine.data[curLineIndex].len;
+                }else{
+                    return '';
+                }
             }
         },
         //拖拽时，指示线顶部提示文本
         tipTextFn: {
             type: Function,
             default: (rangeData, curLine, colorIndex, isLast=false)=>{
-                return rangeData[curLine].data[colorIndex].left;
+                if(rangeData[curLine].data[colorIndex]){
+                    return rangeData[curLine].data[colorIndex].left;
+                }else{
+                    return ''
+                }
             }
         },
         
     },
 	data() {
 		return {
+            headTop: 0,
+            scrollLeft: 0,
+            browerType: '',
             // 垂直指示线
             opacityTitle: false,
             tipLineLeft: 0,
@@ -333,11 +484,40 @@ export default {
         },
     },
 	mounted() {
-		this.$nextTick(async () => {
-            
-		});
+        var vm = this;
+        var agent = window.navigator.userAgent.toLowerCase();
+        if (agent.indexOf('chrome') > 0) {
+            this.browerType = 'chrome'
+        } else if (agent.indexOf('firefox') > 0) {
+            this.browerType = 'firefox'
+        } else if (agent.indexOf('trident') > 0) {
+            this.browerType = 'ie'
+        } else if (agent.indexOf('edge') > 0) {
+            this.browerType = 'edge'
+        } else {
+            this.browerType = 'other'
+        };
+
     },
 	methods: {
+        isRender(top, fullHeight){
+            if(this.maxHeight == 'auto' || (fullHeight - 120) <= this.maxHeight){
+                return true;
+            }
+            //上下 各120 像素
+            //this.headTop | fullHeight | this.maxHeight
+            var see_h_top = this.headTop - 120;
+            var see_h_bottom = +this.headTop + +this.maxHeight + 120;
+            if(top >= see_h_top && top <= see_h_bottom) return true;
+            return false;
+        },
+        weekRangeWrapScroll(e){
+            if(this.maxHeight != 'auto'){
+                var weekRangeWrap = this.$refs.weekRangeWrap;
+                this.headTop = weekRangeWrap.scrollTop;
+                this.scrollLeft = weekRangeWrap.scrollLeft;
+            }
+        },
         jsonClone(d){
             return JSON.parse(JSON.stringify(d))
         },
@@ -357,7 +537,7 @@ export default {
             return d;
         },
         //初始化图形
-		init(data, options){
+		init(data, options, scrollPos){
             var defaultOpt = {
                 // 左上角标题
                 vhTitle: '时间',
@@ -409,8 +589,18 @@ export default {
                     }
                 }
             };
-            if(data){
+            if(data && this.combineAllLine == false){
                 this.res = this.setDragLeftPos(this.jsonClone(data));
+            }else if(data && this.combineAllLine){
+                this.res = this.setCombine(
+                    this.setDragLeftPos(this.jsonClone(data))
+                );
+            };
+            if(scrollPos){
+                this.$nextTick(()=>{
+                    this.$refs.weekRangeWrap.scrollTop = scrollPos.top
+                    this.$refs.weekRangeWrap.scrollLeft = scrollPos.left
+                })
             }
             this._res = this.jsonClone(this.res)
             this.rangeKey = Date.now();
@@ -470,6 +660,7 @@ export default {
             this.res = this.setDragLeftPos(res);
             //重置原始记录
             this._res = this.jsonClone(this.res);
+            this.$emit('add', this.jsonClone(this.res));
         },
         //删除一项
         removeColorItem(index, lineNum = -1){
@@ -499,6 +690,7 @@ export default {
             this.res = this.setDragLeftPos(res);
             //重置原始记录
             this._res = this.jsonClone(this.res)
+            this.$emit('remove', this.jsonClone(this.res));
         },
         drag(dataLine, colorItemIndex, wrapEl, lineEl, e){
             var res2 = this.jsonClone(this.res)
@@ -725,6 +917,7 @@ export default {
                 //指示线
                 this.tipLineLeft = +lineEl.offsetLeft + 84;
                 this.tipLineData = this.tipTextFn(this.res, dataLine, colorItemIndex)
+                this.$emit('drag', this.jsonClone(this.res));
             };
             document.onmouseup = e2 => {
                 e2.preventDefault();
@@ -826,6 +1019,7 @@ export default {
                 //指示线
                 this.tipLineLeft = +lineEl.offsetLeft + 84;
                 this.tipLineData = this.tipTextFn(this.res, dataLine, colorItemLength, true);
+                this.$emit('drag', this.jsonClone(this.res));
             };
             document.onmouseup = e2 => {
                 e2.preventDefault();
@@ -859,6 +1053,37 @@ export default {
         getColors(){
             return this.opt.color;
         },
+        getActiveColorItem(){
+            return this.activeColorItem;
+        },
+        getOpt(){
+            return this.jsonClone(this.opt)
+        },
+        getScroll(){
+            return {
+                top: this.headTop || 0,
+                left: this.scrollLeft || 0,
+            };
+        },
+        // 将每行数据合并到一行展示
+        setCombine(res){
+            for(var i=0; i<res.length; i++){
+                var resData = res[i].data;
+                for(var j=0; j<resData.length; j++){
+                    resData[j].combine = this.combineAllLine[resData[j].code];
+                }
+            }
+            return res;
+        },
+        lineMouseOver(line){
+            this.$emit('lineMouseOver', line);
+        },
+        wrapMouseOut(){
+            this.$emit('wrapMouseOut');
+        },
+        lineClick(line){
+            this.$emit('lineClick', line);
+        },
 
 	}
 };
@@ -869,16 +1094,21 @@ export default {
     background: #393939;
     color: #ccc;
     border: 1px solid #4b4b4b;
+    padding-bottom: 10px;
+    width: 100%;
+    overflow-x: auto;
+    position: relative;
+    padding-top: 30px;
     .v-tip-line{
         position: absolute;
         height: calc(100% + 10px);
         width: 2px;
-        top: -10px;
         border-right: 1px dashed #919191;
         border-left: none;
+        z-index: 2000;
         span{
             position: absolute;
-            bottom: calc(100% + 7px);
+            bottom: calc(100% + 12px);
             font-size: 12px;
             color: #fff;
             font-size: 12px;
@@ -892,6 +1122,9 @@ export default {
         height: 24px;
         line-height: 24px;
         background: #222;
+        position: absolute;
+        left: 0px;
+        z-index: 2000;
         &.opac{
             color: rgba(255,255,255,.2);
         }
@@ -906,6 +1139,7 @@ export default {
             flex: none;
             position: relative;
             height: 24px;
+            background: #222;
             .span-text{
                 position: absolute;
                 left: -6px;
@@ -920,6 +1154,7 @@ export default {
                 }
             }
             .span-last{
+                background: #222;
                 position: absolute;
                 right: -12px;
                 top: 0px;
@@ -932,7 +1167,6 @@ export default {
         align-items: center;
         height: 40px;
         line-height: 40px;
-        margin-top: 10px;
         &:nth-of-type(1){
             margin-top: 10px;
         }
